@@ -28,7 +28,7 @@ int gstreamer_init(int, char **);
 #ifdef __cplusplus
 }
 #endif
-
+std::string SESSION_ID="START";
 LOGGER_TAG("com.amazonaws.kinesis.video.gstreamer");
 
 #define VIDEO_DEVICE_ENV_VAR "AWS_KVS_VIDEO_DEVICE"
@@ -363,6 +363,64 @@ bool all_stream_started(CustomData *data) {
 
 void kinesis_video_stream_init(CustomData *data);
 
+void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t event_timestamp, std::string& intervalId)
+{
+  LOG_DEBUG("CREATING METADATA FOR EVENT WITH TIMESTAMP:" << event_timestamp);
+  PStreamEventMetadata eventMetadata = new StreamEventMetadata;
+
+  // Set the number of pairs
+  eventMetadata->numberOfPairs = (is_start_event) ? 7 : 4;
+
+  // Set the custom pairs
+  std::string event_interval_id = "ID";
+
+  std::string event_name = "TYPE";
+  std::string event_name_value = (is_start_event) ? "VIDEO_INTERVAL_START" : "VIDEO_INTERVAL_END";
+
+  std::string event_message_name = "MESSAGE";
+  std::string event_message_value = (is_start_event) ? "STARTING" : "FINISHING";
+
+  eventMetadata->names[0] = strdup(event_name.c_str());
+  eventMetadata->values[0] = strdup(event_name_value.c_str());
+
+  eventMetadata->names[1] = strdup(event_interval_id.c_str());
+  eventMetadata->values[1] = strdup(intervalId.c_str());
+
+  eventMetadata->names[2] = strdup(event_message_name.c_str());
+  eventMetadata->values[2] = strdup(event_message_value.c_str());
+
+  std::string event_timestamp_name = "PRODUCER_TIMESTAMP";
+  std::string event_timestamp_value = std::to_string(event_timestamp);
+
+  eventMetadata->names[3] = strdup(event_timestamp_name.c_str());
+  eventMetadata->values[3] = strdup(event_timestamp_value.c_str());
+
+  if (is_start_event)
+  {
+    std::string event_triggered_by_name = "HOUSEHOLD_ID";
+    std::string event_triggered_by_value = "febe";
+
+    eventMetadata->names[4] = strdup(event_triggered_by_name.c_str());
+    eventMetadata->values[4] = strdup(event_triggered_by_value.c_str());
+
+    std::string event_device_id_name = "DEVICE_ID";
+    std::string event_device_id_value = "febe01";
+
+    eventMetadata->names[5] = strdup(event_device_id_name.c_str());
+    eventMetadata->values[5] = strdup(event_device_id_value.c_str());
+
+    std::string event_stream_name = "STREAM";
+    std::string event_stream_value = "SH20-eventStream-febe01";
+
+    eventMetadata->names[6] = strdup(event_stream_name.c_str());
+    eventMetadata->values[6] = strdup(event_stream_value.c_str());
+  }
+
+  data->kinesis_video_stream->putEventMetadata(STREAM_EVENT_TYPE_NOTIFICATION, eventMetadata);
+
+  delete eventMetadata;
+}
+
 static GstFlowReturn on_new_sample(GstElement *sink, CustomData *data) {
     std::unique_lock<std::mutex> lk(data->audio_video_sync_mtx);
     GstSample *sample = nullptr;
@@ -484,6 +542,9 @@ static GstFlowReturn on_new_sample(GstElement *sink, CustomData *data) {
                         break;
                 }
             }
+            LOG_DEBUG("STARTING SENDING THE VIDEO MKV TAGS");
+            SESSION_ID = to_string(data->key_frame_pts);
+            putEventMetadataMKVTags(data, true, data->key_frame_pts, SESSION_ID);
             kinesis_video_flags = FRAME_FLAG_KEY_FRAME;
             key_frame_count++;
         }
@@ -1122,6 +1183,8 @@ int main(int argc, char *argv[]) {
                         // stop sync will send out remaining frames. If stopSync
                         // succeeds then everything is done, otherwise do retry
                         if (data.kinesis_video_stream->stopSync()) {
+                            LOG_DEBUG("COMPLETE SENDING THE VIDEO MKV TAGS");
+                            putEventMetadataMKVTags(&data, false, data.file_list[i].last_fragment_ts, SESSION_ID);
                             LOG_INFO("All files have been persisted");
                             do_retry = false;
                         } else {
