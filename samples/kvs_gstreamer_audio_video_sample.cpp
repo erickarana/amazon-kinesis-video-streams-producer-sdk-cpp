@@ -525,6 +525,10 @@ static GstFlowReturn on_new_sample(GstElement *sink, CustomData *data) {
         if (data->first_video_frame) {
             // start cutting fragment at second video key frame because we can have audio frames before first video key frame
             data->first_video_frame = false;
+
+            LOG_DEBUG("STARTING SENDING THE VIDEO MKV TAGS");
+            SESSION_ID = to_string(data->key_frame_pts);
+            putEventMetadataMKVTags(data, true, data->key_frame_pts, SESSION_ID);
         } else {
             if (key_frame_count % KEYFRAME_EVENT_INTERVAL == 0) {
                 key_frame_count = 0;
@@ -542,9 +546,6 @@ static GstFlowReturn on_new_sample(GstElement *sink, CustomData *data) {
                         break;
                 }
             }
-            LOG_DEBUG("STARTING SENDING THE VIDEO MKV TAGS");
-            SESSION_ID = to_string(data->key_frame_pts);
-            putEventMetadataMKVTags(data, true, data->key_frame_pts, SESSION_ID);
             kinesis_video_flags = FRAME_FLAG_KEY_FRAME;
             key_frame_count++;
         }
