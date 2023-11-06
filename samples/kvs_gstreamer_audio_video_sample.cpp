@@ -373,6 +373,7 @@ void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t eve
 
     // Set the custom pairs
     std::string event_interval_id = "ID";
+    std::string event_interval_id_value = "400cce62-669f-4bd9-a1b1-99c9afc466af";
 
     std::string event_name = "TYPE";
     std::string event_name_value = (is_start_event) ? "VIDEO_INTERVAL_START" : "VIDEO_INTERVAL_END";
@@ -381,7 +382,7 @@ void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t eve
     eventMetadata->values[0] = strdup(event_name_value.c_str());
 
     eventMetadata->names[1] = strdup(event_interval_id.c_str());
-    eventMetadata->values[1] = strdup(intervalId.c_str());
+    eventMetadata->values[1] = strdup(event_interval_id_value.c_str());
 
     std::string event_timestamp_name = "PRODUCER_TIMESTAMP";
     std::string event_timestamp_value = std::to_string(event_timestamp);
