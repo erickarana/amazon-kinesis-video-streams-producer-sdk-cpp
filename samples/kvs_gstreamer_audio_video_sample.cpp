@@ -363,6 +363,23 @@ bool all_stream_started(CustomData *data) {
 
 void kinesis_video_stream_init(CustomData *data);
 
+uint32_t rand32()
+{
+    return ((rand() & 0x3) << 30) | ((rand() & 0x7fff) << 15) | (rand() & 0x7fff);
+}
+
+bool gen_uuid4(char dst[37], size_t len)
+{
+    int n = snprintf(dst, len, "%08x-%04x-%04x-%04x-%04x%08x", 
+        rand32(),                         // Generates a 32-bit Hex number
+        rand32() & 0xffff,                // Generates a 16-bit Hex number
+        ((rand32() & 0x0fff) | 0x4000),   // Generates a 16-bit Hex number of the form 4xxx (4 indicates the UUID version)
+        (rand32() & 0x3fff) + 0x8000,     // Generates a 16-bit Hex number in the range [0x8000, 0xbfff]
+        rand32() & 0xffff, rand32());     // Generates a 48-bit Hex number
+        
+    return n >= 0 && n < len;             // Success only when snprintf result is a positive number and the provided buffer was large enough.
+}
+
 void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t event_timestamp, std::string& intervalId)
 {
     LOG_DEBUG("CREATING METADATA FOR EVENT WITH TIMESTAMP:" << event_timestamp);
@@ -370,10 +387,13 @@ void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t eve
 
     // Set the number of pairs
     eventMetadata->numberOfPairs = 3;
-
+    char strUuid[37];
+    srand(time(NULL));
+    
+    bool success = gen_uuid4(strUuid, sizeof(strUuid));
     // Set the custom pairs
     std::string event_interval_id = "ID";
-    std::string event_interval_id_value = "400cce62-669f-4bd9-a1b1-99c9afc466af";
+    std::string event_interval_id_value = success ? strUuid : "7978eb21-d2f7-4b2c-a9be-b18e138aa837";
 
     std::string event_name = "TYPE";
     std::string event_name_value = (is_start_event) ? "VIDEO_INTERVAL_START" : "VIDEO_INTERVAL_END";
