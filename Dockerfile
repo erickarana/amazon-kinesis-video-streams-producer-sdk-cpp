@@ -20,7 +20,10 @@ RUN apt-get update -qq \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-tools \
-    python3
+    python3 \
+    && wget wget https://bootstrap.pypa.io/get-pip.py \
+    && python3.7 get-pip.py \
+    && pip install boto3
 
 # Pre-built make
 WORKDIR /tmp
