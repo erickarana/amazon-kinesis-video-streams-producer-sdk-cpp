@@ -19,7 +19,8 @@ RUN apt-get update -qq \
     gstreamer1.0-plugins-bad \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-ugly \
-    gstreamer1.0-tools
+    gstreamer1.0-tools \
+    python3
 
 # Pre-built make
 WORKDIR /tmp

@@ -21,6 +21,8 @@ using namespace std::chrono;
 using namespace com::amazonaws::kinesis::video;
 using namespace log4cplus;
 
+std::string intervalIdtest;
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -72,7 +74,6 @@ LOGGER_TAG("com.amazonaws.kinesis.video.gstreamer");
 #define KEYFRAME_EVENT_INTERVAL 200
 
 uint8_t gEvents = 0;
-
 typedef struct _FileInfo
 {
     _FileInfo() : path(""),
@@ -450,8 +451,8 @@ void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t eve
     long long nanoseconds = std::stoll(intervalId); // Asumiendo que es un tipo numérico largo
     long long seconds = nanoseconds / 1000000000;
 
-    std::string intervalIdtest = (!deviceId.empty() ? deviceId : "") + "-" + std::to_string(cameraStartTime);
-
+    intervalIdtest = (!deviceId.empty() ? deviceId : "") + "-" + std::to_string(cameraStartTime);
+    LOG_DEBUG("INTERVAL ID: " << intervalIdtest)
     LOG_DEBUG("CREATING INTERVAL ID FOR EVENT WITH ID:" << intervalId);
     // Set the custom pairs
     std::string event_interval_id = "ID";
@@ -471,6 +472,28 @@ void putEventMetadataMKVTags(CustomData *data, bool is_start_event, uint64_t eve
 
     eventMetadata->names[2] = strdup(event_timestamp_name.c_str());
     eventMetadata->values[2] = strdup(event_timestamp_value.c_str());
+
+    std::string pythonScript = "./main.py";
+    SESSION_ID = to_string(data->key_frame_pts);
+    // Parámetros para pasar al script de Python
+    std::string param1 = intervalIdtest;
+    std::string param2 = std::to_string(std::stoll(SESSION_ID) / 1000000000);
+
+    // Construir el comando completo
+    LOG_DEBUG("CREATING INTERVAL ID FOR EVENT WITH ID:" << intervalIdtest);
+    std::string command = "python3.7 " + pythonScript + " --param1 " + param1 + " --param2 " + param2;
+
+    // Ejecutar el comando
+    int result = system(command.c_str());
+
+    // Verificar el resultado de la ejecución
+    if (result != 0)
+    {
+        LOG_DEBUG("ERRRRRRROOOOOOOOOOOOOOOOOOR!!!!!!!!!!!!!!!!");
+    }
+
+    LOG_DEBUG("RESULTTTTTTT");
+    LOG_DEBUG(result);
 
     data->kinesis_video_stream->putEventMetadata(STREAM_EVENT_TYPE_NOTIFICATION, eventMetadata);
 
@@ -625,6 +648,30 @@ static GstFlowReturn on_new_sample(GstElement *sink, CustomData *data)
                 LOG_DEBUG("STARTING SENDING THE MKV TAGS");
                 SESSION_ID = to_string(data->key_frame_pts);
                 putEventMetadataMKVTags(data, true, data->key_frame_pts, SESSION_ID, secondsTo);
+            }
+            if (key_frame_count == 2)
+            {
+                // std::string pythonScript = "./main.py";
+                // SESSION_ID = to_string(data->key_frame_pts);
+                // // Parámetros para pasar al script de Python
+                // std::string param1 = intervalIdtest;
+                // std::string param2 = SESSION_ID;
+
+                // // Construir el comando completo
+                // LOG_DEBUG("CREATING INTERVAL ID FOR EVENT WITH ID:" << intervalIdtest);
+                // std::string command = "python3.7 " + pythonScript + " --param1 " + param1 + " --param2 " + param2;
+
+                // // Ejecutar el comando
+                // int result = system(command.c_str());
+
+                // // Verificar el resultado de la ejecución
+                // if (result != 0)
+                // {
+                //     LOG_DEBUG("ERRRRRRROOOOOOOOOOOOOOOOOOR!!!!!!!!!!!!!!!!");
+                // }
+
+                // LOG_DEBUG("RESULTTTTTTT");
+                // LOG_DEBUG(result);
             }
             kinesis_video_flags = FRAME_FLAG_KEY_FRAME;
             key_frame_count++;
@@ -1352,6 +1399,7 @@ int main(int argc, char *argv[])
                 {
                     LOG_DEBUG("COMPLETE SENDING THE MKV TAGS");
                     putEventMetadataMKVTags(&data, false, data.file_list[i].last_fragment_ts, SESSION_ID, secondsTo);
+
                     LOG_INFO("Finished sending file to kvs producer: " << data.file_list[i].path);
                     // check if we just finished sending the last file.
                     if (i == data.file_list.size() - 1)
